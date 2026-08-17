@@ -13,6 +13,7 @@ class MenuItem(Base):
     price = Column(Float, nullable=False)
     category = Column(String)
     available = Column(Boolean, default=True)
+    is_popular = Column(Boolean, default=False)
 
 
 class Customer(Base):
