@@ -32,10 +32,6 @@ async def vapi_tools(request: Request):
 
     body = await request.json()
 
-    print("========== VAPI TOOL REQUEST ==========")
-    print(json.dumps(body, indent=2))
-    print("=======================================")
-
     message = body.get("message", {})
 
     tool_calls = message.get("toolCalls", [])
@@ -74,8 +70,7 @@ async def vapi_tools(request: Request):
                 except json.JSONDecodeError:
                     arguments = {}
 
-            print(f"TOOL: {tool_name}")
-            print(f"ARGUMENTS: {arguments}")
+            print(f"VAPI TOOL: {tool_name}")
 
             try:
 
@@ -103,8 +98,6 @@ async def vapi_tools(request: Request):
                             "available": item.available,
                             "is_popular": item.is_popular
                         })
-
-                    print("MENU ITEMS:", len(result))
 
 
                 # ==================================================
@@ -223,12 +216,6 @@ async def vapi_tools(request: Request):
                                 "items": items_summary
                             },
                             timeout=5
-                        )
-
-                        print(
-                            "n8n webhook:",
-                            response.status_code,
-                            response.text
                         )
 
                     except Exception as e:
@@ -594,10 +581,7 @@ async def vapi_tools(request: Request):
 
                 db.rollback()
 
-                print(
-                    f"TOOL ERROR [{tool_name}]:",
-                    str(e)
-                )
+                print(f"VAPI TOOL ERROR [{tool_name}]: {e}")
 
                 result = {
                     "success": False,
@@ -617,9 +601,5 @@ async def vapi_tools(request: Request):
     final_response = {
         "results": results
     }
-
-    print("========== VAPI TOOL RESPONSE ==========")
-    print(json.dumps(final_response, indent=2, default=str))
-    print("========================================")
 
     return final_response
