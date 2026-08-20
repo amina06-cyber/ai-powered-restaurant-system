@@ -1,12 +1,12 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
+import requests
 import database
 import models
 import schemas
 
 router = APIRouter()
-
 
 @router.post("/orders")
 def create_order(order: schemas.OrderCreate, db: Session = Depends(database.get_db)):
@@ -18,9 +18,19 @@ def create_order(order: schemas.OrderCreate, db: Session = Depends(database.get_
     if not customer:
         customer = models.Customer(
             name=order.customer_name,
-            phone=order.customer_phone
+            phone=order.customer_phone,
+            email=order.customer_email
         )
         db.add(customer)
+        db.commit()
+        db.refresh(customer)
+    else:
+        # Update customer details if new information is provided
+        customer.name = order.customer_name
+
+        if order.customer_email:
+            customer.email = order.customer_email
+
         db.commit()
         db.refresh(customer)
 
@@ -35,8 +45,9 @@ def create_order(order: schemas.OrderCreate, db: Session = Depends(database.get_
     db.commit()
     db.refresh(new_order)
 
-    # 3. Add each item, look up real price from the menu
+    # 3. Add each item and get the real price from the menu
     total = 0.0
+
     for item in order.items:
         menu_item = db.query(models.MenuItem).filter(
             models.MenuItem.id == item.menu_item_id
@@ -51,6 +62,7 @@ def create_order(order: schemas.OrderCreate, db: Session = Depends(database.get_
             quantity=item.quantity,
             price_at_order=menu_item.price
         )
+
         db.add(order_item)
         total += menu_item.price * item.quantity
 
@@ -59,8 +71,41 @@ def create_order(order: schemas.OrderCreate, db: Session = Depends(database.get_
     db.commit()
     db.refresh(new_order)
 
-    return new_order
+    # 5. Trigger n8n order confirmation workflow
+    try:
+        items_summary = [
+            {
+                "name": db.query(models.MenuItem)
+                .filter(models.MenuItem.id == item.menu_item_id)
+                .first()
+                .name,
+                "quantity": item.quantity
+            }
+            for item in order.items
+        ]
 
+        response = requests.post(
+            "https://aminaashfaq.app.n8n.cloud/webhook/order-confirmation",
+            json={
+                "order_id": new_order.id,
+                "customer_name": customer.name,
+                "customer_email": customer.email,
+                "customer_phone": customer.phone,
+                "total_price": new_order.total_price,
+                "items": items_summary
+            },
+            timeout=5
+        )
+
+        print(
+            f"n8n webhook response: "
+            f"{response.status_code} - {response.text}"
+        )
+
+    except Exception as e:
+        print(f"n8n webhook FAILED: {e}")
+
+    return new_order
 
 @router.get("/orders/{order_id}")
 def get_order(order_id: int, db: Session = Depends(database.get_db)):

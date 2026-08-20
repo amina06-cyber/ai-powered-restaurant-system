@@ -82,43 +82,46 @@ def chat_with_agent(user_message, conversation_history=None):
             {
                 "role": "system",
                 "content": (
-                    "You are a friendly restaurant assistant. You can help customers "
-                    "browse the menu, place orders, check order status, check table "
-                    "availability, and make or cancel reservations. Always confirm "
-                    "details with the customer before placing an order or reservation. "
-                    "Be concise and natural in your responses."
+                    "You are a friendly restaurant assistant for Mirch & Co. You can help "
+                    "customers browse the menu, place orders, check order status, check "
+                    "table availability, and make or cancel reservations. "
+                    "When placing an order or reservation, always ask for the customer's "
+                    "name and email address (email is required, since order confirmations "
+                    "are sent via email, not phone). Phone number is optional and only "
+                    "needed if the customer wants to provide it. "
+                    "Always confirm the order details (items, total price) with the "
+                    "customer before calling create_order. Be concise and natural in "
+                    "your responses."
                 )
             }
         ]
- 
+
     conversation_history.append({"role": "user", "content": user_message})
- 
+
     response = client.chat.completions.create(
         model="gpt-4o-mini",
         messages=conversation_history,
         tools=tools
     )
- 
+
     message = response.choices[0].message
- 
-    # If GPT wants to call a tool, execute it and feed the result back
+
     if message.tool_calls:
         conversation_history.append(message)
- 
+
         for tool_call in message.tool_calls:
             function_name = tool_call.function.name
             function_args = json.loads(tool_call.function.arguments)
- 
+
             function_to_call = AVAILABLE_FUNCTIONS[function_name]
             function_result = function_to_call(**function_args)
- 
+
             conversation_history.append({
                 "role": "tool",
                 "tool_call_id": tool_call.id,
                 "content": json.dumps(function_result)
             })
- 
-        # Ask GPT to respond to the customer now that it has the tool result
+
         second_response = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=conversation_history
@@ -126,7 +129,7 @@ def chat_with_agent(user_message, conversation_history=None):
         final_message = second_response.choices[0].message
         conversation_history.append(final_message)
         return final_message.content, conversation_history
- 
+
     else:
         conversation_history.append(message)
         return message.content, conversation_history

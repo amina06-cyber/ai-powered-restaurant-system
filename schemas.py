@@ -20,6 +20,7 @@ class OrderItemCreate(BaseModel):
 class OrderCreate(BaseModel):
     customer_name: str
     customer_phone: str = ""
+    customer_email: str = ""
     delivery_address: str = ""
     items: List[OrderItemCreate]
 
