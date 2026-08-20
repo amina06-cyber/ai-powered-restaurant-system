@@ -74,6 +74,53 @@ def cancel_reservation(reservation_id: int, db: Session = Depends(database.get_d
 
     return reservation
 
+@router.get("/tables/availability")
+def find_available_table(
+    reservation_time: datetime,
+    party_size: int,
+    db: Session = Depends(database.get_db)
+):
+    # Find tables that can accommodate the party
+    tables = (
+        db.query(models.Table)
+        .filter(models.Table.capacity >= party_size)
+        .order_by(models.Table.capacity.asc())
+        .all()
+    )
+
+    if not tables:
+        return {
+            "available": False,
+            "message": f"No table can accommodate {party_size} people."
+        }
+
+    window_start = reservation_time - timedelta(hours=2)
+    window_end = reservation_time + timedelta(hours=2)
+
+    for table in tables:
+        conflict = db.query(models.Reservation).filter(
+            models.Reservation.table_id == table.id,
+            models.Reservation.status == models.ReservationStatus.confirmed,
+            models.Reservation.reservation_time > window_start,
+            models.Reservation.reservation_time < window_end
+        ).first()
+
+        if not conflict:
+            return {
+                "available": True,
+                "table_id": table.id,
+                "table_number": table.table_number,
+                "capacity": table.capacity,
+                "requested_time": reservation_time,
+                "party_size": party_size
+            }
+
+    return {
+        "available": False,
+        "requested_time": reservation_time,
+        "party_size": party_size,
+        "message": "No suitable table is available at that time."
+    }
 
 @router.get("/tables/{table_id}/availability")
 def check_availability(table_id: int, reservation_time: datetime, db: Session = Depends(database.get_db)):
