@@ -2,6 +2,7 @@ from fastapi import FastAPI, Request
 import database
 import models
 import requests
+import json
 
 from routers import menu, orders, reservations
 
@@ -9,9 +10,8 @@ app = FastAPI()
 
 models.Base.metadata.create_all(bind=database.engine)
 
-# Your own API base URL internally.
-# Vapi calls /vapi/tools, and this webhook calls your existing endpoints.
-BASE_URL = "http://127.0.0.1:8000"
+# Public Railway backend URL
+BASE_URL = "https://ai-powered-restaurant-system-production.up.railway.app"
 
 
 @app.get("/")
@@ -28,29 +28,55 @@ app.include_router(reservations.router)
 async def vapi_tools(request: Request):
     body = await request.json()
 
-    print("Vapi request:", body)
+    print("========== VAPI TOOL REQUEST ==========")
+    print(json.dumps(body, indent=2))
+    print("=======================================")
 
-    # Vapi sends the tool call inside message.toolCalls
     message = body.get("message", {})
+
+    # Vapi Function tools normally provide toolCalls here.
     tool_calls = message.get("toolCalls", [])
+
+    # Compatibility in case the payload uses toolCallList.
+    if not tool_calls:
+        tool_calls = message.get("toolCallList", [])
 
     results = []
 
     for tool_call in tool_calls:
-        function = tool_call.get("function", {})
-        tool_name = function.get("name")
-        arguments = function.get("arguments", {})
 
-        # Sometimes arguments can arrive as a JSON string.
+        tool_name = None
+        arguments = {}
+
+        # Handle normal Vapi function format
+        function = tool_call.get("function", {})
+
+        if function:
+            tool_name = function.get("name")
+            arguments = function.get("arguments", {})
+
+        # Handle alternate format
+        if not tool_name:
+            tool_name = tool_call.get("name")
+
+        if not arguments:
+            arguments = tool_call.get("arguments", {})
+
+        # Arguments may arrive as a JSON string
         if isinstance(arguments, str):
-            import json
-            arguments = json.loads(arguments)
+            try:
+                arguments = json.loads(arguments)
+            except json.JSONDecodeError:
+                arguments = {}
+
+        print(f"TOOL: {tool_name}")
+        print(f"ARGUMENTS: {arguments}")
 
         try:
 
-            # -------------------------------------------------
+            # =================================================
             # GET MENU
-            # -------------------------------------------------
+            # =================================================
             if tool_name == "get_menu":
 
                 response = requests.get(
@@ -63,18 +89,24 @@ async def vapi_tools(request: Request):
                 result = response.json()
 
 
-            # -------------------------------------------------
+            # =================================================
             # CREATE ORDER
-            # -------------------------------------------------
+            # =================================================
             elif tool_name == "create_order":
 
                 payload = {
                     "customer_name": arguments["customer_name"],
                     "customer_phone": arguments.get("customer_phone", ""),
                     "customer_email": arguments["customer_email"],
-                    "delivery_address": arguments["delivery_address"],
+                    "delivery_address": arguments.get(
+                        "delivery_address",
+                        ""
+                    ),
                     "items": arguments["items"],
                 }
+
+                print("CREATE ORDER PAYLOAD:")
+                print(json.dumps(payload, indent=2))
 
                 response = requests.post(
                     f"{BASE_URL}/orders",
@@ -82,14 +114,17 @@ async def vapi_tools(request: Request):
                     timeout=15,
                 )
 
+                print("ORDER STATUS:", response.status_code)
+                print("ORDER RESPONSE:", response.text)
+
                 response.raise_for_status()
 
                 result = response.json()
 
 
-            # -------------------------------------------------
+            # =================================================
             # CHECK ORDER STATUS
-            # -------------------------------------------------
+            # =================================================
             elif tool_name == "check_order_status":
 
                 order_id = arguments["order_id"]
@@ -104,9 +139,9 @@ async def vapi_tools(request: Request):
                 result = response.json()
 
 
-            # -------------------------------------------------
-            # CHECK TABLE AVAILABILITY
-            # -------------------------------------------------
+            # =================================================
+            # CHECK AVAILABILITY
+            # =================================================
             elif tool_name == "check_availability":
 
                 table_id = arguments["table_id"]
@@ -120,23 +155,32 @@ async def vapi_tools(request: Request):
                     timeout=15,
                 )
 
+                print("AVAILABILITY STATUS:", response.status_code)
+                print("AVAILABILITY RESPONSE:", response.text)
+
                 response.raise_for_status()
 
                 result = response.json()
 
 
-            # -------------------------------------------------
+            # =================================================
             # CREATE RESERVATION
-            # -------------------------------------------------
+            # =================================================
             elif tool_name == "create_reservation":
 
                 payload = {
                     "customer_name": arguments["customer_name"],
-                    "customer_phone": arguments["customer_phone"],
+                    "customer_phone": arguments.get(
+                        "customer_phone",
+                        ""
+                    ),
                     "table_id": arguments["table_id"],
                     "reservation_time": arguments["reservation_time"],
                     "party_size": arguments["party_size"],
                 }
+
+                print("CREATE RESERVATION PAYLOAD:")
+                print(json.dumps(payload, indent=2))
 
                 response = requests.post(
                     f"{BASE_URL}/reservations",
@@ -144,14 +188,17 @@ async def vapi_tools(request: Request):
                     timeout=15,
                 )
 
+                print("RESERVATION STATUS:", response.status_code)
+                print("RESERVATION RESPONSE:", response.text)
+
                 response.raise_for_status()
 
                 result = response.json()
 
 
-            # -------------------------------------------------
+            # =================================================
             # CANCEL RESERVATION
-            # -------------------------------------------------
+            # =================================================
             elif tool_name == "cancel_reservation":
 
                 reservation_id = arguments["reservation_id"]
@@ -166,39 +213,47 @@ async def vapi_tools(request: Request):
                 result = response.json()
 
 
-            # -------------------------------------------------
+            # =================================================
             # UNKNOWN TOOL
-            # -------------------------------------------------
+            # =================================================
             else:
 
                 result = {
-                    "error": f"Unknown tool: {tool_name}"
+                    "success": False,
+                    "error": f"Unknown tool: {tool_name}",
                 }
 
 
         except requests.RequestException as e:
 
-            print(f"Backend error for {tool_name}: {e}")
+            print(f"BACKEND ERROR FOR {tool_name}: {e}")
 
             result = {
-                "error": f"Backend request failed: {str(e)}"
+                "success": False,
+                "error": str(e),
             }
 
         except Exception as e:
 
-            print(f"Tool error for {tool_name}: {e}")
+            print(f"TOOL ERROR FOR {tool_name}: {e}")
 
             result = {
-                "error": str(e)
+                "success": False,
+                "error": str(e),
             }
 
 
-        results.append({
-            "name": tool_name,
-            "toolCallId": tool_call.get("id"),
-            "result": result,
-        })
+        results.append(
+            {
+                "name": tool_name,
+                "toolCallId": tool_call.get("id"),
+                "result": result,
+            }
+        )
 
+
+    print("VAPI TOOL RESPONSE:")
+    print(json.dumps({"results": results}, indent=2))
 
     return {
         "results": results
