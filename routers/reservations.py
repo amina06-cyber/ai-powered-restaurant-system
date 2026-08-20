@@ -80,7 +80,7 @@ def find_available_table(
     party_size: int,
     db: Session = Depends(database.get_db)
 ):
-    # Find tables that can accommodate the party
+    # Find tables that can fit the requested party
     tables = (
         db.query(models.Table)
         .filter(models.Table.capacity >= party_size)
@@ -94,6 +94,7 @@ def find_available_table(
             "message": f"No table can accommodate {party_size} people."
         }
 
+    # Check each suitable table for a reservation conflict
     window_start = reservation_time - timedelta(hours=2)
     window_end = reservation_time + timedelta(hours=2)
 
@@ -105,6 +106,7 @@ def find_available_table(
             models.Reservation.reservation_time < window_end
         ).first()
 
+        # This table is free
         if not conflict:
             return {
                 "available": True,
@@ -115,11 +117,12 @@ def find_available_table(
                 "party_size": party_size
             }
 
+    # Every suitable table is occupied
     return {
         "available": False,
         "requested_time": reservation_time,
         "party_size": party_size,
-        "message": "No suitable table is available at that time."
+        "message": f"No tables are available for {party_size} people at that time."
     }
 
 @router.get("/tables/{table_id}/availability")
