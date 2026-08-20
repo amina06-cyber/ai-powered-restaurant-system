@@ -194,3 +194,16 @@ def get_all_reservations(db: Session = Depends(database.get_db)):
         })
 
     return result
+
+@router.get("/tables")
+def get_all_tables(db: Session = Depends(database.get_db)):
+    tables = db.query(models.Table).all()
+
+    return [
+        {
+            "id": table.id,
+            "table_number": table.table_number,
+            "capacity": table.capacity,
+        }
+        for table in tables
+    ]
