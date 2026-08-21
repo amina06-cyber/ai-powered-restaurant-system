@@ -10,6 +10,40 @@ router = APIRouter()
 
 @router.post("/orders")
 def create_order(order: schemas.OrderCreate, db: Session = Depends(database.get_db)):
+    # 0. Validate all menu items BEFORE creating anything.
+    #    This prevents "phantom" orders with missing items.
+    validated_items = []
+
+    for item in order.items:
+        menu_item = db.query(models.MenuItem).filter(
+            models.MenuItem.id == item.menu_item_id
+        ).first()
+
+        if not menu_item:
+            return {
+                "success": False,
+                "error": (
+                    f"Menu item with id {item.menu_item_id} does not exist. "
+                    f"Order was not created."
+                )
+            }
+
+        if item.quantity <= 0:
+            return {
+                "success": False,
+                "error": (
+                    f"Quantity for {menu_item.name} must be greater than 0."
+                )
+            }
+
+        validated_items.append((menu_item, item.quantity))
+
+    if not validated_items:
+        return {
+            "success": False,
+            "error": "No valid items were provided. Order was not created."
+        }
+
     # 1. Find or create the customer
     customer = db.query(models.Customer).filter(
         models.Customer.phone == order.customer_phone
@@ -25,7 +59,6 @@ def create_order(order: schemas.OrderCreate, db: Session = Depends(database.get_
         db.commit()
         db.refresh(customer)
     else:
-        # Update customer details if new information is provided
         customer.name = order.customer_name
 
         if order.customer_email:
@@ -45,26 +78,26 @@ def create_order(order: schemas.OrderCreate, db: Session = Depends(database.get_
     db.commit()
     db.refresh(new_order)
 
-    # 3. Add each item and get the real price from the menu
+    # 3. Add each validated item using the REAL menu_item objects
+    #    (no re-querying later, so nothing can silently fail)
     total = 0.0
+    items_summary = []
 
-    for item in order.items:
-        menu_item = db.query(models.MenuItem).filter(
-            models.MenuItem.id == item.menu_item_id
-        ).first()
-
-        if not menu_item:
-            continue
-
+    for menu_item, quantity in validated_items:
         order_item = models.OrderItem(
             order_id=new_order.id,
             menu_item_id=menu_item.id,
-            quantity=item.quantity,
+            quantity=quantity,
             price_at_order=menu_item.price
         )
 
         db.add(order_item)
-        total += menu_item.price * item.quantity
+        total += menu_item.price * quantity
+
+        items_summary.append({
+            "name": menu_item.name,
+            "quantity": quantity
+        })
 
     # 4. Update total
     new_order.total_price = total
@@ -72,18 +105,9 @@ def create_order(order: schemas.OrderCreate, db: Session = Depends(database.get_
     db.refresh(new_order)
 
     # 5. Trigger n8n order confirmation workflow
+    #    (uses the same items_summary built above — no re-querying,
+    #    so it can't crash on a bad id and silently skip the email)
     try:
-        items_summary = [
-            {
-                "name": db.query(models.MenuItem)
-                .filter(models.MenuItem.id == item.menu_item_id)
-                .first()
-                .name,
-                "quantity": item.quantity
-            }
-            for item in order.items
-        ]
-
         response = requests.post(
             "https://aminaashfaq.app.n8n.cloud/webhook/order-confirmation",
             json={
