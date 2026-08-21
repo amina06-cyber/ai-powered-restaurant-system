@@ -31,7 +31,8 @@ class OrderStatusUpdate(BaseModel):
 
 class ReservationCreate(BaseModel):
     customer_name: str
-    customer_phone: str = ""
+    customer_phone: str
+    customer_email: str
     table_id: int
     reservation_time: datetime
     party_size: int
