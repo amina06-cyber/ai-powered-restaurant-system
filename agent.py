@@ -541,6 +541,17 @@ Never fabricate:
 - dates
 - times
 - successful actions
+
+FORMATTING
+- Do not use Markdown formatting.
+- Do not use asterisks (*) for bold, italics, or emphasis.
+- Do not use ** around words.
+- Use plain text only.
+- For reservation details, use simple labels such as:
+  Date: September 5, 2026
+  Time: 6:00 PM
+  Party Size: 2
+  Table Number: 1
 """
 
 
