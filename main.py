@@ -8,6 +8,8 @@ import json
 import requests
 
 from routers import menu, orders, reservations
+from agent import chat_with_agent
+from pydantic import BaseModel
 
 app = FastAPI()
 
@@ -612,3 +614,19 @@ async def vapi_tools(request: Request):
     }
 
     return final_response
+class ChatRequest(BaseModel):
+    message: str
+    conversation_history: list = []
+
+
+@app.post("/chat")
+def chat(request: ChatRequest):
+    reply, history = chat_with_agent(
+        request.message,
+        request.conversation_history
+    )
+
+    return {
+        "reply": reply,
+        "conversation_history": history
+    }
