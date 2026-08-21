@@ -97,38 +97,43 @@ tools = [
         }
     },
     {
-        "type": "function",
-        "function": {
-            "name": "create_reservation",
-            "description": "Book a table reservation for a customer, after confirming availability.",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "customer_name": {
-                        "type": "string",
-                        "description": "The customer's name."
-                    },
-                    "customer_phone": {
-                        "type": "string",
-                        "description": "The customer's phone number."
-                    },
-                    "table_id": {
-                        "type": "integer",
-                        "description": "The ID of the table to reserve."
-                    },
-                    "reservation_time": {
-                        "type": "string",
-                        "description": "The requested date and time, in ISO 8601 format."
-                    },
-                    "party_size": {
-                        "type": "integer",
-                        "description": "Number of people in the party."
-                    }
+    "type": "function",
+    "function": {
+        "name": "create_reservation",
+        "description": "Create a confirmed restaurant reservation.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "customer_name": {
+                    "type": "string"
                 },
-                "required": ["customer_name", "table_id", "reservation_time", "party_size"]
-            }
+                "customer_email": {
+                    "type": "string"
+                },
+                "customer_phone": {
+                    "type": "string"
+                },
+                "table_id": {
+                    "type": "integer"
+                },
+                "reservation_time": {
+                    "type": "string"
+                },
+                "party_size": {
+                    "type": "integer"
+                }
+            },
+            "required": [
+                "customer_name",
+                "customer_email",
+                "customer_phone",
+                "table_id",
+                "reservation_time",
+                "party_size"
+            ]
         }
-    },
+    }
+},
     {
         "type": "function",
         "function": {
