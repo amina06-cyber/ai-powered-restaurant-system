@@ -179,3 +179,164 @@ def update_order_status(order_id: int, update: schemas.OrderStatusUpdate, db: Se
         "status": order.status,
         "customer_name": order.customer.name
     }
+@router.patch("/orders/{order_id}/cancel")
+def cancel_order(
+    order_id: int,
+    db: Session = Depends(database.get_db)
+):
+    order = db.query(models.Order).filter(
+        models.Order.id == order_id
+    ).first()
+
+    if not order:
+        return {"success": False, "error": "Order not found"}
+
+    # Don't allow cancellation after the order is already completed/cancelled
+    if str(order.status) in ["cancelled", "delivered"]:
+        return {
+            "success": False,
+            "error": f"Order #{order_id} cannot be cancelled because its status is {order.status}."
+        }
+
+    order.status = models.OrderStatus.cancelled
+
+    db.commit()
+    db.refresh(order)
+
+    return {
+        "success": True,
+        "order_id": order.id,
+        "status": order.status,
+        "customer_name": order.customer.name,
+        "message": f"Order #{order.id} has been cancelled successfully."
+    }
+
+
+@router.patch("/orders/{order_id}")
+def update_order(
+    order_id: int,
+    update: schemas.OrderUpdate,
+    db: Session = Depends(database.get_db)
+):
+    order = db.query(models.Order).filter(
+        models.Order.id == order_id
+    ).first()
+
+    if not order:
+        return {
+            "success": False,
+            "error": "Order not found"
+        }
+
+    # Don't allow editing completed/cancelled orders
+    if str(order.status) in ["cancelled", "delivered"]:
+        return {
+            "success": False,
+            "error": (
+                f"Order #{order_id} cannot be modified "
+                f"because its status is {order.status}."
+            )
+        }
+
+    customer = order.customer
+
+    # -----------------------------
+    # Update customer information
+    # -----------------------------
+
+    if update.customer_name is not None:
+        customer.name = update.customer_name
+
+    if update.customer_email is not None:
+        customer.email = update.customer_email
+
+    if update.customer_phone is not None:
+        customer.phone = update.customer_phone
+
+    # -----------------------------
+    # Update delivery address
+    # -----------------------------
+
+    if update.delivery_address is not None:
+        order.delivery_address = update.delivery_address
+
+    # -----------------------------
+    # Replace/update order items
+    # -----------------------------
+
+    if update.items is not None:
+
+        # Remove current order items
+        for existing_item in list(order.items):
+            db.delete(existing_item)
+
+        db.flush()
+
+        total = 0.0
+        items_summary = []
+
+        for item in update.items:
+
+            menu_item = db.query(models.MenuItem).filter(
+                models.MenuItem.id == item.menu_item_id
+            ).first()
+
+            if not menu_item:
+                return {
+                    "success": False,
+                    "error": f"Menu item {item.menu_item_id} not found."
+                }
+
+            if item.quantity <= 0:
+                return {
+                    "success": False,
+                    "error": (
+                        f"Quantity for {menu_item.name} "
+                        f"must be greater than 0."
+                    )
+                }
+
+            order_item = models.OrderItem(
+                order_id=order.id,
+                menu_item_id=menu_item.id,
+                quantity=item.quantity,
+                price_at_order=menu_item.price
+            )
+
+            db.add(order_item)
+
+            total += menu_item.price * item.quantity
+
+            items_summary.append({
+                "name": menu_item.name,
+                "quantity": item.quantity,
+                "price": menu_item.price
+            })
+
+        order.total_price = total
+
+    db.commit()
+    db.refresh(order)
+
+    # Get updated items
+    updated_items = []
+
+    for item in order.items:
+        updated_items.append({
+            "menu_item_name": item.menu_item.name,
+            "quantity": item.quantity,
+            "price_at_order": item.price_at_order
+        })
+
+    return {
+        "success": True,
+        "order_id": order.id,
+        "status": order.status,
+        "customer_name": customer.name,
+        "customer_email": customer.email,
+        "customer_phone": customer.phone,
+        "delivery_address": order.delivery_address,
+        "total_price": order.total_price,
+        "items": updated_items,
+        "message": f"Order #{order.id} updated successfully."
+    }

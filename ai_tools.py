@@ -152,3 +152,74 @@ tools = [
         }
     }
 ]
+{
+    "type": "function",
+    "function": {
+        "name": "cancel_order",
+        "description": "Cancel an existing food order using its order ID.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "order_id": {
+                    "type": "integer",
+                    "description": "The ID of the order to cancel."
+                }
+            },
+            "required": ["order_id"]
+        }
+    }
+},
+{
+    "type": "function",
+    "function": {
+        "name": "update_order",
+        "description": "Update details of an existing food order. Only provide the fields that the customer wants to change.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "order_id": {
+                    "type": "integer",
+                    "description": "The ID of the order to update."
+                },
+                "customer_name": {
+                    "type": "string",
+                    "description": "New customer name."
+                },
+                "customer_email": {
+                    "type": "string",
+                    "description": "New customer email address."
+                },
+                "customer_phone": {
+                    "type": "string",
+                    "description": "New customer phone number."
+                },
+                "delivery_address": {
+                    "type": "string",
+                    "description": "New delivery address."
+                },
+                "items": {
+                    "type": "array",
+                    "description": "New list of order items and quantities.",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "menu_item_id": {
+                                "type": "integer",
+                                "description": "Menu item ID from get_menu."
+                            },
+                            "quantity": {
+                                "type": "integer",
+                                "description": "Quantity of the menu item."
+                            }
+                        },
+                        "required": [
+                            "menu_item_id",
+                            "quantity"
+                        ]
+                    }
+                }
+            },
+            "required": ["order_id"]
+        }
+    }
+}
