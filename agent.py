@@ -803,6 +803,28 @@ Do not use hyphens as bullets.
 If you need a list, use numbered items.
 
 Do not add unnecessary formatting.
+
+IMPORTANT ORDER RULE
+
+Never reuse items from an old order when the customer starts a new order.
+
+If the customer says:
+
+"I want to place an order"
+
+ask what they would like to order.
+
+If the customer says:
+
+"I want Loaded Fries"
+
+create an order containing only Loaded Fries unless they explicitly request additional items.
+
+Never copy items from a previous order into a new order.
+
+Never assume "order" means the previous order.
+
+Never create an order with items the customer did not request.
 """
 
 
@@ -842,6 +864,139 @@ def chat_with_agent(
             "role": "user",
             "content": user_message
         }
+    )
+
+    # ========================================================
+    # LOOP UNTIL THE MODEL RETURNS A FINAL (NON-TOOL-CALL) MESSAGE
+    # ========================================================
+
+    MAX_TOOL_ROUNDS = 6
+
+    for _ in range(MAX_TOOL_ROUNDS):
+
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=conversation_history,
+            tools=tools
+        )
+
+        message = response.choices[0].message
+
+        conversation_history.append(message)
+
+        # No tool calls -> this is the final answer, stop looping
+        if not message.tool_calls:
+            return (
+                message.content,
+                conversation_history
+            )
+
+        # ----------------------------------------------------
+        # Resolve every tool call in this round
+        # ----------------------------------------------------
+
+        for tool_call in message.tool_calls:
+
+            function_name = tool_call.function.name
+
+            print(
+                f"\nAI TOOL CALL: {function_name}"
+            )
+
+            try:
+
+                function_args = json.loads(
+                    tool_call.function.arguments
+                )
+
+            except json.JSONDecodeError:
+
+                function_args = {}
+
+            print(
+                f"TOOL ARGUMENTS: {function_args}"
+            )
+
+            if function_name not in AVAILABLE_FUNCTIONS:
+
+                function_result = {
+                    "success": False,
+                    "error": (
+                        f"Unknown tool: {function_name}"
+                    )
+                }
+
+            else:
+
+                try:
+
+                    function_to_call = (
+                        AVAILABLE_FUNCTIONS[
+                            function_name
+                        ]
+                    )
+
+                    function_result = (
+                        function_to_call(
+                            **function_args
+                        )
+                    )
+
+                    print(
+                        f"TOOL RESULT: {function_result}"
+                    )
+
+                except Exception as e:
+
+                    print(
+                        f"TOOL ERROR: {e}"
+                    )
+
+                    function_result = {
+                        "success": False,
+                        "error": str(e)
+                    }
+
+            conversation_history.append(
+                {
+                    "role": "tool",
+                    "tool_call_id": tool_call.id,
+                    "content": json.dumps(
+                        function_result,
+                        default=str
+                    )
+                }
+            )
+
+        # Loop continues: send updated history back to the model,
+        # which may either answer normally or request more tool calls.
+
+    # ========================================================
+    # SAFETY NET: too many tool-call rounds, force a plain answer
+    # ========================================================
+
+    conversation_history.append(
+        {
+            "role": "user",
+            "content": (
+                "Please provide a final answer now without "
+                "calling any more tools."
+            )
+        }
+    )
+
+    final_response = client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=conversation_history
+    )
+
+    final_message = final_response.choices[0].message
+
+    conversation_history.append(final_message)
+
+    return (
+        final_message.content,
+        conversation_history
     )
 
     # ========================================================
