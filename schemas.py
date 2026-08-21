@@ -37,3 +37,10 @@ class ReservationCreate(BaseModel):
     table_id: int
     reservation_time: datetime
     party_size: int
+
+class OrderUpdate(BaseModel):
+    customer_name: str | None = None
+    customer_email: str | None = None
+    customer_phone: str | None = None
+    delivery_address: str | None = None
+    items: list[OrderItemCreate] | None = None
