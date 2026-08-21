@@ -14,7 +14,7 @@ load_dotenv()
  
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
  
-BASE_URL = "http://127.0.0.1:8000"
+BASE_URL = "https://ai-powered-restaurant-system-production.up.railway.app"
  
  
 # ---- These functions actually call our own FastAPI backend ----
@@ -23,17 +23,17 @@ def get_menu():
     response = requests.get(f"{BASE_URL}/menu")
     return response.json()
  
- 
-def create_order(customer_name, items, customer_phone="", delivery_address=""):
+
+def create_order(customer_name, customer_email, items, customer_phone="", delivery_address=""):
     payload = {
         "customer_name": customer_name,
+        "customer_email": customer_email,
         "customer_phone": customer_phone,
         "delivery_address": delivery_address,
         "items": items
     }
     response = requests.post(f"{BASE_URL}/orders", json=payload)
     return response.json()
- 
  
 def check_order_status(order_id):
     response = requests.get(f"{BASE_URL}/orders/{order_id}")

@@ -23,6 +23,10 @@ tools = [
                         "type": "string",
                         "description": "The customer's name."
                     },
+                    "customer_email": {
+                        "type": "string",
+                        "description": "The customer's email address, required for sending order confirmation."
+                    },
                     "customer_phone": {
                         "type": "string",
                         "description": "The customer's phone number, used to identify returning customers."
@@ -50,7 +54,7 @@ tools = [
                         }
                     }
                 },
-                "required": ["customer_name", "items"]
+                "required": ["customer_name", "customer_email", "items"]
             }
         }
     },
